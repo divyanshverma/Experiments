@@ -34,6 +34,12 @@ app.use(function(req, res, next) {
   next(err);
 });
 
+process.on('uncaughtException', function (err) {
+
+  var message = err.stack;
+  console.log('App.js:Caught exception: ' + message);
+
+});
 // error handlers
 
 // development error handler
