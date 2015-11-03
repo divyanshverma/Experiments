@@ -94,7 +94,7 @@ function consume(msg){
             if(!_.isUndefined(body.result) && body.result.length > 0){
                 respond(to, "Is this " + body.result[0].email_address + " full name (SSO) Reply 'Yes' or 'No'");
                 //queue[to] = {};
-                queue[to].state = 1;
+                queue[to].state = 2;
             } else {
                 respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
             }
@@ -103,16 +103,16 @@ function consume(msg){
         return actionQuery("cmn_notif_device", cb, "user.user_name=" + msg.Body.toLowerCase());
     }
 
-    if(!/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state >= 1){
+    if(!/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state === 1){
 
         queue[to].state = 0;
-        return respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
+        return respond(to, "We were unable to locate you, please try again.");
     }
 
-    if(msg.Body.toLowerCase() === "yes" && queue[to].state >= 1){
+    if(msg.Body.toLowerCase() === "yes" && queue[to].state >= 2){
 
-        if(queue[to].state === 1){
-            queue[to].state = 2;
+        if(queue[to].state === 2){
+            queue[to].state = 3;
 
             var cb = function (error, response, body) {
                 console.log("Status :" + response.statusCode);
@@ -133,9 +133,8 @@ function consume(msg){
 
     }
 
-    if(msg.Body.toLowerCase() === "no" && queue[to].state >= 1){
-        if(queue[to].state === 1){
-            queue[to].state = 0;
+    if(msg.Body.toLowerCase() === "no" && queue[to].state >= 2){
+        if(queue[to].state === 2){
             try{
                 delete queue[to]
             } catch(e){
@@ -154,7 +153,7 @@ function consume(msg){
         return respond(to, "Your request has been cancelled. Thank you for contacting GE Help Desk");
     }
 
-    if(msg.Body.toLowerCase().startsWith("desc:") && queue[to].state > 1){
+    if(msg.Body.toLowerCase().startsWith("desc:") && queue[to].state >= 3){
 
         var cb = function (error, response, body) {
             console.log("Status :" + response.statusCode);
@@ -173,7 +172,7 @@ function consume(msg){
         }, queue[to].incident);
     }
 
-    if(msg.Body.toLowerCase() === "phone"  && queue[to].state > 1 ){
+    if(msg.Body.toLowerCase() === "phone"  && queue[to].state >= 3 ){
         respond(to, "Thank you, an agent will contact you in approximately 3 hours via Phone - Cell");
         setTimeout(function(){
             return respond(to, "Would you like to input a description? If yes, please reply with description to you issue. Start your response with desc:");
@@ -181,7 +180,7 @@ function consume(msg){
 
     }
 
-    if(msg.Body.toLowerCase() === "jabber"  && queue[to].state > 1){
+    if(msg.Body.toLowerCase() === "jabber"  && queue[to].state >= 3){
         respond(to, "Thank you, an agent will contact you in approximately 3 hours via Jabber");
         setTimeout(function(){
             return respond(to, "Would you like to input a description? If yes, please reply with description to you issue. Start your response with desc:");
@@ -189,7 +188,7 @@ function consume(msg){
 
     }
 
-    if(msg.Body.toLowerCase() === "email"  && queue[to].state > 1){
+    if(msg.Body.toLowerCase() === "email"  && queue[to].state >= 3){
         respond(to, "Thank you, an agent will contact you in approximately 3 hours via Email");
         setTimeout(function(){
             return respond(to, "Would you like to input a description? If yes, please reply with description to you issue. Start your response with desc:");
