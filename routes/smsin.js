@@ -49,6 +49,8 @@ function consume(msg){
 
         if(_.isUndefined(queue[to].incident)){
 
+            respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.");
+
             var cb = function (error, response, body) {
                 console.log("Status :" + response.statusCode);
                 console.log("Error" + error);
@@ -56,16 +58,15 @@ function consume(msg){
                 //respond(to, "");
                 queue[to].state = 1;
                 if(!_.isUndefined(body.result) && body.result.length > 0){
-                    return respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile. Is this user full name (SSO) Reply Y1 for Yes or N1 for No.");
+                    return respond(to, "Is this user full name (SSO) Reply Y1 for Yes or N1 for No.");
                     //queue[to] = {};
 
                 } else {
 
                     setTimeout(function(){
-                        respond(to, "We were unable to locate you, please reply with your SSO.");
+                        return respond(to, "We were unable to locate you, please reply with your SSO.");
                     },2000);
 
-                    return respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.");
                 }
             };
 
@@ -191,15 +192,15 @@ function consume(msg){
 
     if(!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && queue[to].state >= 3) {
         console.log("Twilio Media Received");
-        var fileExt;
+        var fileExt = "";
         if(msg.MediaContentType0.indexOf('png') > -1)
             fileExt = ".png";
         if(msg.MediaContentType0.indexOf('jpeg') > -1)
             fileExt = ".jpeg";
         if(msg.MediaContentType0.indexOf('jpg') > -1)
             fileExt = ".jpg";
-        if(msg.MediaContentType0.indexOf('mov') > -1)
-            fileExt = ".mov";
+        if(msg.MediaContentType0.indexOf('3gpp') > -1)
+            fileExt = ".3gp";
 
         fileExt = queue[to].mc + fileExt;
 
@@ -221,7 +222,7 @@ function consume(msg){
             console.log("Status :" + response.statusCode);
             console.log("Error" + error);
 
-            var base64Image = new Buffer(body, 'binary').toString('base64');
+            var base64Image = new Buffer(body).toString('base64');
             //console.log("Base64-Body" + JSON.stringify(base64Image));
 
             actionPostMedia("ecc_queue", cb, {
@@ -385,10 +386,3 @@ function actionPostMedia(table, cb, data, _id){
 }
 
 module.exports = router;
-
-//var base64Image = new Buffer(original_data, 'binary').toString('base64');
-
-// Here you decode the base64 to a buffer, which is fine, but then you
-// convert the buffer into a string with encoding 'binary'. This means that
-// it is a string object whose code points are bytes of the buffer.
-//var decodedImage = new Buffer(base64Image, 'base64').toString('binary');
