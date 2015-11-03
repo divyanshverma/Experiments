@@ -64,7 +64,7 @@ function consume(msg){
                 //respond(to, "");
                 queue[to].state = 1;
                 if(!_.isUndefined(body.result) && body.result.length > 0){
-                    respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile. Is this user full name (SSO) Reply Y1 for Yes or N1 for No.");
+                    return respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile. Is this user full name (SSO) Reply Y1 for Yes or N1 for No.");
                     //queue[to] = {};
 
                 } else {
@@ -76,15 +76,15 @@ function consume(msg){
                 }
             };
 
-            return actionQuery("cmn_notif_device", cb, "phone_numberLIKE" + to);
+            actionQuery("cmn_notif_device", cb, "phone_numberLIKE" + to);
         } else {
-            respond(to, "You already have an open incident " + queue[to].incidentNumber + ". Would you like to use the same incident ot create a new one ? Reply 'O' for old or 'N' for new.");
+            return respond(to, "You already have an open incident " + queue[to].incidentNumber + ". Would you like to use the same incident ot create a new one ? Reply 'O' for old or 'N' for new.");
         }
 
     }
 
     //check if SSO
-    if(/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state >= 1){
+    if(/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state === 1){
 
         var cb = function (error, response, body) {
             console.log("Status :" + response.statusCode);
@@ -92,15 +92,15 @@ function consume(msg){
             console.log("Body" + JSON.stringify(body));
             //respond(to, "");
             if(!_.isUndefined(body.result) && body.result.length > 0){
-                respond(to, "Is this " + body.result[0].email_address + " full name (SSO) Reply 'Yes' or 'No'");
                 //queue[to] = {};
                 queue[to].state = 2;
+                return respond(to, "Is this " + body.result[0].email_address + " full name (SSO) Reply 'Yes' or 'No'");
             } else {
-                respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
+                return respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
             }
         };
 
-        return actionQuery("cmn_notif_device", cb, "user.user_name=" + msg.Body.toLowerCase());
+         actionQuery("cmn_notif_device", cb, "user.user_name=" + msg.Body.toLowerCase());
     }
 
     if(!/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state === 1){
@@ -122,13 +122,13 @@ function consume(msg){
                 if(!_.isUndefined(body.result.number)){
                     queue[to].incident = body.result.sys_id;
                     queue[to].incidentNumber = body.result.number;
-                    respond(to, "Incident " + body.result.number + " has been created. What's the best method of contact? Reply 'Phone' or 'Jabber' or 'Email'.");
+                    return respond(to, "Incident " + body.result.number + " has been created. What's the best method of contact? Reply 'Phone' or 'Jabber' or 'Email'.");
                 } else {
-                    respond(to, "Failed to create Incident, please contact Service Desk at 1-800-866-4513.");
+                    return respond(to, "Failed to create Incident, please contact Service Desk at 1-800-866-4513.");
                 }
             };
 
-            return actionPost("incident", cb, {});
+            actionPost("incident", cb, {});
         }
 
     }
@@ -161,9 +161,9 @@ function consume(msg){
             console.log("Body" + JSON.stringify(body));
             //respond(to, "");
             if(!_.isUndefined(body.result.number)){
-                respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
+                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
             } else {
-                respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
+                return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
             }
         };
 
