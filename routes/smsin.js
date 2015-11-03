@@ -62,13 +62,14 @@ function consume(msg){
                 console.log("Error" + error);
                 console.log("Body" + JSON.stringify(body));
                 //respond(to, "");
+                queue[to].state = 1;
                 if(!_.isUndefined(body.result) && body.result.length > 0){
                     respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile. Is this user full name (SSO) Reply Y1 for Yes or N1 for No.");
                     //queue[to] = {};
-                    queue[to].state = 1;
-                } else {
-                    respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.");
 
+                } else {
+                    //queue[to].state = 1;
+                    respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.");
                     setTimeout(function(){
                         return respond(to, "We were unable to locate you, please reply with your SSO.");
                     },2000);
@@ -83,7 +84,7 @@ function consume(msg){
     }
 
     //check if SSO
-    if(/^[0-9]{9}$/.test(msg.Body.toLowerCase())){
+    if(/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state >= 1){
 
         var cb = function (error, response, body) {
             console.log("Status :" + response.statusCode);
@@ -102,13 +103,13 @@ function consume(msg){
         return actionQuery("cmn_notif_device", cb, "user.user_name=" + msg.Body.toLowerCase());
     }
 
-    if(!/^[0-9]{9}$/.test(msg.Body.toLowerCase())){
+    if(!/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state >= 1){
 
         queue[to].state = 0;
         return respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
     }
 
-    if(msg.Body.toLowerCase() === "yes" ){
+    if(msg.Body.toLowerCase() === "yes" && queue[to].state >= 1){
 
         if(queue[to].state === 1){
             queue[to].state = 2;
