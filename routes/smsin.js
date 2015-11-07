@@ -58,25 +58,32 @@ function consume(msg){
                 //respond(to, "");
                 queue[to].state = 1;
                 if(!_.isUndefined(body.result) && body.result.length > 0){
-                    return respond(to, "Is this user full name (SSO) Reply Y1 for Yes or N1 for No.");
-                    //queue[to] = {};
-
+                    queue[to].state = 2;
+                    return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Yes' or 'No'");
                 } else {
 
-                    setTimeout(function(){
+                    //setTimeout(function(){
                         return respond(to, "We were unable to locate you, please reply with your SSO.");
-                    },2000);
+                    //},2000);
 
                 }
             };
 
-            return actionQuery("cmn_notif_device", cb, "phone_numberLIKE" + to);
+            return actionQuery("cmn_notif_device", cb, "phone_numberLIKE" + to.substring(2));
         } else {
             return respond(to, "You already have an open incident " + queue[to].incidentNumber + ". Would you like to use the same incident ot create a new one ? Reply 'O' for old or 'N' for new.");
         }
 
     }
 
+    if(msg.Body.toLowerCase() === "gestop" ){
+        try{
+            delete queue[to]
+        } catch(e){
+            console.log(e);
+        }
+        return respond(to, "Your request has been cancelled. Thank you for contacting GE Help Desk");
+    }
     //check if SSO
     if(/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state === 1){
 
@@ -88,7 +95,7 @@ function consume(msg){
             if(!_.isUndefined(body.result) && body.result.length > 0){
                 //queue[to] = {};
                 queue[to].state = 2;
-                return respond(to, "Is this " + body.result[0].email_address + " full name (SSO) Reply 'Yes' or 'No'");
+                return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Yes' or 'No'");
             } else {
                 return respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
             }
@@ -116,13 +123,13 @@ function consume(msg){
                 if(!_.isUndefined(body.result.number)){
                     queue[to].incident = body.result.sys_id;
                     queue[to].incidentNumber = body.result.number;
-                    return respond(to, "Incident " + body.result.number + " has been created. What's the best method of contact? Reply 'Phone' or 'Jabber' or 'Email'.");
+                    return respond(to, "Incident " + body.result.number + " has been created. What's the best method of contact? Reply 'P' for Phone or 'J' for Jabber or 'E' for email.");
                 } else {
                     return respond(to, "Failed to create Incident, please contact Service Desk at 1-800-866-4513.");
                 }
             };
 
-            actionPost("incident", cb, {});
+            return actionPost("incident", cb, {});
         }
 
     }
@@ -138,59 +145,35 @@ function consume(msg){
         }
     }
 
-    if(msg.Body.toLowerCase() === "gestop" ){
-        try{
-            delete queue[to]
-        } catch(e){
-            console.log(e);
-        }
-        return respond(to, "Your request has been cancelled. Thank you for contacting GE Help Desk");
-    }
-
-    if(msg.Body.toLowerCase().startsWith("desc:") && queue[to].state >= 3){
-
-        var cb = function (error, response, body) {
-            console.log("Status :" + response.statusCode);
-            console.log("Error" + error);
-            console.log("Body" + JSON.stringify(body));
-            //respond(to, "");
-            if(!_.isUndefined(body.result.number)){
-                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
-            } else {
-                return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
-            }
-        };
-
-        return actionPut("incident", cb, {
-            short_description: msg.Body.substring(5, msg.Body.length)
-        }, queue[to].incident);
-    }
-
-    if(msg.Body.toLowerCase() === "phone"  && queue[to].state >= 3 ){
-        respond(to, "Thank you, an agent will contact you in approximately 3 hours via Phone - Cell");
+    if(msg.Body.toLowerCase() === "p"  && queue[to].state >= 3 ){
+        queue[to].state = 4;
         setTimeout(function(){
-            return respond(to, "Would you like to input a description? If yes, please reply with description to you issue. Start your response with desc:");
+            respond(to, "Would you like to input a description? If yes, please reply with description to you issue");
         },2000);
+        return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Phone - Cell");
+
 
     }
 
-    if(msg.Body.toLowerCase() === "jabber"  && queue[to].state >= 3){
-        respond(to, "Thank you, an agent will contact you in approximately 3 hours via Jabber");
+    if(msg.Body.toLowerCase() === "j"  && queue[to].state >= 3){
+        queue[to].state = 4;
         setTimeout(function(){
-            return respond(to, "Would you like to input a description? If yes, please reply with description to you issue. Start your response with desc:");
+            respond(to, "Would you like to input a description? If yes, please reply with description to you issue.");
         },2000);
+        return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Jabber");
+
 
     }
 
-    if(msg.Body.toLowerCase() === "email"  && queue[to].state >= 3){
-        respond(to, "Thank you, an agent will contact you in approximately 3 hours via Email");
+    if(msg.Body.toLowerCase() === "e"  && queue[to].state >= 3){
+        queue[to].state = 4;
         setTimeout(function(){
-            return respond(to, "Would you like to input a description? If yes, please reply with description to you issue. Start your response with desc:");
+            respond(to, "Would you like to input a description? If yes, please reply with description to you issue.");
         },2000);
-
+        return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Email");
     }
 
-    if(!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && queue[to].state >= 3) {
+    if(!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && queue[to].state >= 4) {
         console.log("Twilio Media Received");
         var fileExt = "";
         if(msg.MediaContentType0.indexOf('png') > -1)
@@ -236,6 +219,26 @@ function consume(msg){
 
     }
 
+    if(msg.Body.length !== 0 && queue[to].state >= 4){
+
+        var cb = function (error, response, body) {
+            console.log("Status :" + response.statusCode);
+            console.log("Error" + error);
+            console.log("Body" + JSON.stringify(body));
+            //respond(to, "");
+            if(!_.isUndefined(body.result.number)){
+                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
+            } else {
+                return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
+            }
+        };
+
+        return actionPut("incident", cb, {
+            short_description: msg.Body.substring(5, msg.Body.length)
+        }, queue[to].incident);
+    }
+
+    respond(to, "Unrecognized input. Please try again.");
 }
 
 function respond(to, msg){
@@ -326,7 +329,7 @@ function actionPut(table, cb, data, _id){
 
 function actionQuery(table, cb, query){
     var options = {
-        uri: 'https://' + snInstance + '/api/now/v1/table/' + table + '?sysparm_query=' + query,
+        uri: 'https://' + snInstance + '/api/now/v1/table/' + table + '?sysparm_display_value=all&sysparm_query=' + query,
         method: 'GET',
         agent: false,
         strictSSL: false,
