@@ -17,6 +17,11 @@ var sn_user = '501891528'
     , queue = {}
     , accountSid = "AC16b983f4bafc602c1325a475aca8fb7c";//'AC1d94aca36cb1c20f58ddb80312e9208f';
 
+var repMsg = {
+    one : "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.",
+    oneFail : "We were unable to locate you, please reply with your SSO."
+
+}
 var client = require('twilio')(accountSid, authToken);
 
 /* GET users listing. */
@@ -41,7 +46,7 @@ function consume(msg) {
 
     if (_.isUndefined(queue[to])) {
         queue[to] = {};
-        queue[to].state = 0;
+        queue[to].state = -1;
         queue[to].mc = 0;
     }
 
@@ -49,7 +54,7 @@ function consume(msg) {
 
         if (_.isUndefined(queue[to].incident) && queue[to].incident !== false) {
 
-            respond(to, "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.");
+            respond(to, repMsg.one);
 
             var cb = function (error, response, body) {
                 console.log("Status :" + response.statusCode);
@@ -61,7 +66,7 @@ function consume(msg) {
                     return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Yes' or 'No'");
                 } else {
                     console.log("Error" + error);
-                    return respond(to, "We were unable to locate you, please reply with your SSO.");
+                    return respond(to, repMsg.oneFail);
 
                 }
             };
@@ -137,7 +142,7 @@ function consume(msg) {
         return respond(to, "We were unable to locate you, please try again.");
     }
 
-    if (msg.Body.toLowerCase() === "yes" && queue[to].state >= 2) {
+    if (msg.Body.toLowerCase() === "y" && queue[to].state >= 2) {
 
         if (queue[to].state === 2) {
             queue[to].state = 3;
@@ -160,7 +165,7 @@ function consume(msg) {
 
     }
 
-    if (msg.Body.toLowerCase() === "no" && queue[to].state >= 2) {
+    if (msg.Body.toLowerCase() === "n" && queue[to].state >= 2) {
         if (queue[to].state === 2) {
             try {
                 delete queue[to]
@@ -272,7 +277,7 @@ function consume(msg) {
             console.log("Body" + JSON.stringify(body));
             //respond(to, "");
             if (!_.isUndefined(body.result.number)) {
-                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
+                return respond(to, "Comment received, Thank You.");
             } else {
                 return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
             }
