@@ -46,6 +46,7 @@ function consume(msg) {
 
     if (_.isUndefined(queue[to])) {
         queue[to] = {};
+        queue[to].user = {};
         queue[to].state = -1;
         queue[to].mc = 0;
     }
@@ -90,7 +91,7 @@ function consume(msg) {
 
     if (msg.Body.toLowerCase() === "o" && queue[to].state === 0) {
         queue[to].state = 5;
-        return respond(to, "An agent will contact you soon. Meanwhile would you like to add comments to incident? If yes, please reply with your comment.");
+        return respond(to, "An agent will contact you soon. Meanwhile would you like to add a comment to the incident ticket? If yes, please reply with your comment.");
 
     }
 
@@ -126,7 +127,9 @@ function consume(msg) {
             if (!_.isUndefined(body.result) && body.result.length > 0) {
                 //queue[to] = {};
                 queue[to].state = 2;
-                return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Yes' or 'No'");
+                queue[to].user.fullname = body.result[0].user.display_value;
+                queue[to].user.value = body.result[0].user.value;
+                return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Y' for Yes or 'N' for No.");
             } else {
                 console.log("Error" + error);
                 return respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
@@ -146,7 +149,6 @@ function consume(msg) {
 
         if (queue[to].state === 2) {
             queue[to].state = 3;
-
             var cb = function (error, response, body) {
                 console.log("Status :" + response.statusCode);
                 console.log("Body" + JSON.stringify(body));
@@ -160,7 +162,9 @@ function consume(msg) {
                 }
             };
 
-            return actionPost("incident", cb, {});
+            return actionPost("incident", cb, {
+                "opened_by":queue[to].user.value
+            });
         }
 
     }
@@ -204,7 +208,7 @@ function consume(msg) {
         return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Email");
     }
 
-    if (!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && queue[to].state >= 4) {
+    if (!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && queue[to].state >= 5) {
         console.log("Twilio Media Received");
         var fileExt = "";
         if (msg.MediaContentType0.indexOf('png') > -1)
@@ -224,10 +228,10 @@ function consume(msg) {
             console.log("Status :" + response.statusCode);
             console.log("Body" + JSON.stringify(body));
             if (!_.isUndefined(body.result)) {
-                return respond(to, "Media saved.");
+                return respond(to, "Your attachment has been saved to Incident #" + queue[to].incidentNumber);
             } else {
                 console.log("Error" + error);
-                return respond(to, "Saving media failed. Please call the GE Help Desk.");
+                return respond(to, "Saving attachment failed. Please call the GE Help Desk.");
             }
         };
 
@@ -256,7 +260,10 @@ function consume(msg) {
             console.log("Body" + JSON.stringify(body));
             if (!_.isUndefined(body.result.number)) {
                 queue[to].state = 5;
-                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You. Meanwhile would you like to add a comment to incident ticket? If yes, please reply with your comment.");
+                setTimeout(function(){
+                    respond(to, "Would you like to add an attachment such as photo? If yes, please reply with an attachment.");
+                }, 2000);
+                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
             } else {
                 console.log("Error" + error);
                 return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
@@ -268,6 +275,7 @@ function consume(msg) {
             description: msg.Body
         }, queue[to].incident);
     }
+    // Meanwhile would you like to add a comment to incident ticket? If yes, please reply with your comment.
 
     if (msg.Body.length !== 0 && queue[to].state === 5) {
 
