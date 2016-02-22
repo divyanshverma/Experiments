@@ -7,8 +7,7 @@ var bodyParser = require('body-parser');
 var routes = require('./routes/index');
 var users = require('./routes/users');
 var smsin = require('./routes/smsin');
-var config = require("./config");
-
+var config = require("./config.json");
 var app = express();
 
 // view engine setup
@@ -30,7 +29,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
-app.use('/users', users);
+//app.use('/users', users);
 app.use('/smsin', smsin);
 
 // catch 404 and forward to error handler
