@@ -9,206 +9,299 @@ var express = require('express')
     , constants = require('constants')
     , router = express.Router()
     , twilio = require('twilio');
-
-var sn_user = '501891528'
+var ltx = require('ltx');
+var JabberBot = require("../core/JabberBot")();
+var sn_user = 'updatebot'
     , sn_password = 'SXF30gbj'
-    , authToken = "dcc45773d88735753eaf70d442306b11"//"b48c94cc5c85736255fd2f6a3ff0795d"
-    , snInstance = "gedev.service-now.com"
+    , authToken = "dcc45773d88735753eaf70d442306b11"
+    , snInstance = "ge.service-now.com"
     , queue = {}
-    , accountSid = "AC16b983f4bafc602c1325a475aca8fb7c";//'AC1d94aca36cb1c20f58ddb80312e9208f';
+    , accountSid = "AC16b983f4bafc602c1325a475aca8fb7c"
+    , responseDelay = 2000;
+
+var options = {url: 'https://m1.cloudsifu.com/smsin'};
 
 var repMsg = {
-    one : "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.",
-    oneFail : "We were unable to locate you, please reply with your SSO."
+    one: "Thank you for contacting the GE Help Desk. You can cancel this request any time by replying with 'GESTOP'. Please wait while we locate your user profile.",
+    oneFail: "We were unable to locate you, please reply with your SSO."
 
 }
 var client = require('twilio')(accountSid, authToken);
 
 /* GET users listing. */
 router.get('/', function (req, res, next) {
-    res.send('Sorry, your system has been hacked. Close this window right now or else......');
+    res.status(404).send('Sorry, your system has been hacked. Close this window right now or else......').end();
 });
 
 router.post('/', function (req, res, next) {
-    if (twilio.validateExpressRequest(req, authToken)) {
-        console.log(twilio.validateExpressRequest(req, authToken))
+    //console.log(JSON.stringify(req.body));
+    if (twilio.validateExpressRequest(req, authToken, options)) {
+        //console.log(twilio.validateExpressRequest(req, authToken))
         console.log("Twilio Body" + JSON.stringify(req.body));
         consume(req.body);
 
     }
     else {
-        res.send('you are not twilio.  Buzz off.');
+        res.status(400).send('You are not twilio.  Buzz off.').end;
     }
 });
 
 function consume(msg) {
     var to = msg.From;
+    var receivedBy = msg.To;
+    var msgBody = msg.Body.toLowerCase();
 
     if (_.isUndefined(queue[to])) {
         queue[to] = {};
         queue[to].user = {};
+        queue[to].user.email = "";
         queue[to].state = -1;
         queue[to].mc = 0;
+        queue[to].pcm = 'p';
+        queue[to].desc = '';
+        queue[to].createNotifRecord = false;
     }
 
-    if (msg.Body.toLowerCase() === "gehelp") {
+    var state = queue[to].state;
+
+    if (msgBody === "help") {
+        return respond(to, "GEHelpDeskAlerts: Help at CORPONEGEGLL1HELPDESK@ge.com or 800 868 4513. Msg&data rates may apply. 4 msgs/month. Reply STOP to cancel.", receivedBy);
+    }
+
+    if (msgBody === "stop") {
+        return respond(to, "You are unsubscribed from GEHelpDeskAlerts. No more messages will be sent. Help at CORPONEGEGLL1HELPDESK@ge.com or 800 868 4513", receivedBy);
+    }
+
+    if (msgBody === "gehelp") {
 
         if (_.isUndefined(queue[to].incident) && queue[to].incident !== false) {
 
-            respond(to, repMsg.one);
+            respond(to, repMsg.one, receivedBy);
 
             var cb = function (error, response, body) {
-                console.log("Status :" + response.statusCode);
-                console.log("Body" + JSON.stringify(body));
-                //respond(to, "");
                 queue[to].state = 1;
                 if (!_.isUndefined(body.result) && body.result.length > 0) {
+                    console.log("Status :" + response.statusCode);
+                    console.log("Body" + JSON.stringify(body));
                     queue[to].state = 2;
-                    return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Yes' or 'No'");
+                    queue[to].user.value = body.result[0].user.value;
+                    queue[to].user.display_value = body.result[0].user.display_value;
+
+                    var setEmail = function (error, response, body) {
+                        queue[to].user.email = body.result[0].email;
+                        console.log("User email set : " + JSON.stringify(queue[to].user.email));
+                    };
+
+                    actionQuery("sys_user", setEmail, "sys_id=" + queue[to].user.value);
+
+                    setTimeout(function () {
+                        respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Y' for yes or 'N' for no", receivedBy);
+                    }, responseDelay);
+
                 } else {
                     console.log("Error" + error);
-                    return respond(to, repMsg.oneFail);
-
+                    setTimeout(function () {
+                        respond(to, repMsg.oneFail, receivedBy);
+                    }, responseDelay);
                 }
             };
 
-            return actionQuery("cmn_notif_device", cb, "phone_numberLIKE" + to.substring(2));
+            return actionQuery("cmn_notif_device", cb, "type=SMS^phone_numberLIKE" + to.substring(2));
         } else {
             queue[to].state = 0;
-            return respond(to, "You already have an open incident " + queue[to].incidentNumber + ". Would you like to use the same incident ot create a new one ? Reply 'O' for old or 'N' for new.");
+            return respond(to, "You already have an open incident " + queue[to].incidentNumber + ". Would you like to use the same incident ot create a new one ? Reply 'O' for old or 'N' for new.", receivedBy);
         }
 
     }
 
-    if (msg.Body.toLowerCase() === "gestop") {
-        try {
-            delete queue[to]
-        } catch (e) {
-            console.log(e);
-        }
-        return respond(to, "Your request has been cancelled. Thank you for contacting GE Help Desk");
-    }
-
-    if (msg.Body.toLowerCase() === "o" && queue[to].state === 0) {
-        queue[to].state = 5;
-        return respond(to, "An agent will contact you soon. Meanwhile would you like to add a comment to the incident ticket? If yes, please reply with your comment.");
-
-    }
-
-    if (msg.Body.toLowerCase() === "n" && queue[to].state === 0) {
-        queue[to].incident = false;
-        queue[to].incidentNumber = false;
-        queue[to].state = 3;
+    if (msgBody === "gestop") {
 
         var cb = function (error, response, body) {
-            console.log("Status :" + response.statusCode);
-            console.log("Body" + JSON.stringify(body));
-            if (!_.isUndefined(body.result.number)) {
-                queue[to].incident = body.result.sys_id;
-                queue[to].incidentNumber = body.result.number;
-                return respond(to, "New Incident " + body.result.number + " has been created. What's the best method of contact? Reply 'P' for Phone or 'J' for Jabber or 'E' for email.");
-            } else {
-                console.log("Error" + error);
-                return respond(to, "Failed to create Incident, please contact Service Desk at 1-800-866-4513.");
-            }
-        };
-
-        return actionPost("incident", cb, {});
-
-
-    }
-    //check if SSO
-    if (/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state === 1) {
-
-        var cb = function (error, response, body) {
-            console.log("Status :" + response.statusCode);
-            console.log("Body" + JSON.stringify(body));
-            //respond(to, "");
-            if (!_.isUndefined(body.result) && body.result.length > 0) {
-                //queue[to] = {};
-                queue[to].state = 2;
-                queue[to].user.fullname = body.result[0].user.display_value;
-                queue[to].user.value = body.result[0].user.value;
-                return respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Y' for Yes or 'N' for No.");
-            } else {
-                console.log("Error" + error);
-                return respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.");
-            }
-        };
-
-        return actionQuery("cmn_notif_device", cb, "user.user_name=" + msg.Body.toLowerCase());
-    }
-
-    if (!/^[0-9]{9}$/.test(msg.Body.toLowerCase()) && queue[to].state === 1) {
-
-        queue[to].state = 1;
-        return respond(to, "We were unable to locate you, please try again.");
-    }
-
-    if (msg.Body.toLowerCase() === "y" && queue[to].state >= 2) {
-
-        if (queue[to].state === 2) {
-            queue[to].state = 3;
-            var cb = function (error, response, body) {
+            try {
                 console.log("Status :" + response.statusCode);
+                console.log("Error" + error);
                 console.log("Body" + JSON.stringify(body));
-                if (!_.isUndefined(body.result.number)) {
-                    queue[to].incident = body.result.sys_id;
-                    queue[to].incidentNumber = body.result.number;
-                    return respond(to, "Incident " + body.result.number + " has been created. What's the best method of contact? Reply 'P' for Phone or 'J' for Jabber or 'E' for email.");
-                } else {
-                    console.log("Error" + error);
-                    return respond(to, "Failed to create Incident, please contact Service Desk at 1-800-866-4513.");
-                }
-            };
+                delete queue[to]
+            } catch (e) {
+                console.log(e);
+            }
+            respond(to, "Your incident has been cancelled. Thank you for contacting GE Help Desk", receivedBy);
+        };
 
-            return actionPost("incident", cb, {
-                "opened_by":queue[to].user.value
-            });
-        }
+        if (!_.isUndefined(queue[to].incident) && queue[to].incident !== false) {
 
-    }
+            return actionPut("incident", cb, {
+                incident_state: "7"
+            }, queue[to].incident);
 
-    if (msg.Body.toLowerCase() === "n" && queue[to].state >= 2) {
-        if (queue[to].state === 2) {
+        } else {
+
             try {
                 delete queue[to]
             } catch (e) {
                 console.log(e);
             }
-            return respond(to, "Please contact Service Desk at 1-800-866-4513.");
+            return respond(to, "There is no open incident to cancel. Please start over by replying GEHELP.", receivedBy);
         }
     }
 
-    if (msg.Body.toLowerCase() === "p" && queue[to].state >= 3) {
-        queue[to].state = 4;
-        setTimeout(function () {
-            respond(to, "Would you like to input a description? If yes, please reply with description to you issue");
-        }, 2000);
-        return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Phone - Cell");
+    if (msgBody === "o" && state === 0) {
+        queue[to].state = 6;
+        if (receivedBy === "434357")
+            return respond(to, "An agent will contact you soon. Meanwhile would you like to add a comment to the incident ticket? If yes, please reply with your comment.", receivedBy);
+        else
+            return respond(to, "An agent will contact you soon. Meanwhile would you like to add a comment or attachment to the incident ticket? If yes, please reply with your comment.", receivedBy);
+    }
 
+    if (msgBody === "n" && state === 0) {
+        queue[to].incident = false;
+        queue[to].incidentNumber = false;
+        queue[to].state = 3;
+        return respond(to, "What's the best method of contact? Reply 'P' for Phone or 'J' for Jabber or 'E' for email.", receivedBy);
 
     }
 
-    if (msg.Body.toLowerCase() === "j" && queue[to].state >= 3) {
-        queue[to].state = 4;
-        setTimeout(function () {
-            respond(to, "Would you like to input a description? If yes, please reply with description to you issue.");
-        }, 2000);
-        return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Jabber");
+    if (/^[0-9]{9}$/.test(msgBody) && state === 1) {
 
+        var cb = function (error, response, body) {
+            //respond(to, "");
+            if (!_.isUndefined(body.result) && body.result.length > 0) {
+                console.log("Status :" + response.statusCode);
+                console.log("Body" + JSON.stringify(body));
+                //queue[to] = {};
+                queue[to].state = 2;
+                queue[to].user.fullname = body.result[0].user.display_value;
+                queue[to].user.value = body.result[0].user.value;
+
+                var setEmail = function (error, response, body) {
+                    queue[to].user.email = body.result[0].email;
+                    console.log("User email set : " + JSON.stringify(queue[to].user.email));
+                };
+                queue[to].createNotifRecord = true;
+
+                actionQuery("sys_user", setEmail, "sys_id=" + queue[to].user.value);
+
+                respond(to, "Is this " + body.result[0].user.display_value + " ? Reply 'Y' for Yes or 'N' for No.", receivedBy);
+            } else {
+                console.log("Error" + error);
+                respond(to, "We were unable to locate you, please contact Service Desk at 1-800-866-4513.", receivedBy);
+            }
+        };
+
+        return actionQuery("cmn_notif_device", cb, "user.user_name=" + msgBody);
+    }
+
+    if (!/^[0-9]{9}$/.test(msgBody) && state === 1) {
+
+        queue[to].state = 1;
+        return respond(to, "We were unable to locate you, please try again.", receivedBy);
+    }
+
+    if (msgBody === "y" && state >= 2) {
+
+        if (queue[to].state === 2) {
+            if (queue[to].createNotifRecord) {
+                //console.log("create a SMS record in notif table");
+                var _cb = function (error, response, body) {
+                    if (!_.isUndefined(body.result)) {
+                        console.log("Status :" + response.statusCode);
+                        console.log("Error" + error);
+                        console.log("CMN Device Create Body" + JSON.stringify(body));
+                        queue[to].createNotifRecord = false;
+                    }
+                }
+                actionPost("cmn_notif_device", _cb, {
+                    phone_number: to.substring(2),
+                    service_provider: "fc891d3d0a0a0a7a00d9d1d926533a72",
+                    type: "SMS",
+                    active: true,
+                    user: queue[to].user.value
+                });
+            }
+            queue[to].state = 3;
+            return respond(to, "What's the best method of contact? Reply 'P' for Phone or 'J' for Jabber or 'E' for email.", receivedBy);
+        }
 
     }
 
-    if (msg.Body.toLowerCase() === "e" && queue[to].state >= 3) {
-        queue[to].state = 4;
-        setTimeout(function () {
-            respond(to, "Would you like to input a description? If yes, please reply with description to you issue.");
-        }, 2000);
-        return respond(to, "Thank you, an agent will contact you in approximately 3 hours via Email");
+    if (msgBody === "n" && state >= 2) {
+        if (queue[to].state === 2) {
+            queue[to].createNotifRecord = false;
+            try {
+                delete queue[to]
+            } catch (e) {
+                console.log(e);
+            }
+            return respond(to, "Please contact Service Desk at 1-800-866-4513.", receivedBy);
+        }
     }
 
-    if (!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && queue[to].state >= 5) {
+    if (msgBody === "p" && state >= 3) {
+        queue[to].state = 4;
+        queue[to].pcm = 'Phone - Cell';
+        return respond(to, "Please reply with a description of your issue.", receivedBy);
+    }
+
+    if (msgBody === "j" && state >= 3) {
+        queue[to].state = 4;
+        queue[to].pcm = 'Chat';
+        return respond(to, "Please reply with a description of your issue.", receivedBy);
+    }
+
+    if (msgBody === "e" && state >= 3) {
+        queue[to].state = 4;
+        queue[to].pcm = 'Email';
+        return respond(to, "Please reply with a description of your issue.", receivedBy);
+    }
+
+    if (msgBody.length !== 0 && state === 4) {
+
+        queue[to].desc = msg.Body;
+
+        var cb = function (error, response, body) {
+            if (!_.isUndefined(body.result) && !_.isUndefined(body.result.number)) {
+                console.log("Status :" + response.statusCode);
+                console.log("Body" + JSON.stringify(body));
+
+                queue[to].state = 5;
+                queue[to].incident = body.result.sys_id;
+                queue[to].incidentNumber = body.result.number;
+
+                if (receivedBy === "434357")
+                    respond(to, "Thank you. Incident " + body.result.number + " has been created. An agent will contact you soon. You can now close this SMS.", receivedBy);
+                else
+                    respond(to, "Thank you. Incident " + body.result.number + " has been created. An agent will contact you soon. Meanwhile would you like to add a comment or attachment to the incident ticket? If yes, please reply with your comment or attachment.", receivedBy);
+
+                //var reply = new ltx.Element('message', {
+                //    to: queue[to].user.email.value,
+                //    from: "dev.servicenow@ge.com",
+                //    type: "chat"
+                //});
+                //
+                //reply.c("body").t("UpdateBot : Thank you. Incident " + body.result.number + " has been created. An agent will contact you soon.");
+                //JabberBot.send(reply);
+
+            } else {
+                console.log("Error" + error);
+                respond(to, "Failed to create Incident, please contact Service Desk at 1-800-866-4513.", receivedBy);
+            }
+        };
+
+        return actionPost("incident", cb, {
+            opened_by: queue[to].user.value,
+            caller_id: queue[to].user.value,
+            assignment_group: "@CORP ONEGE XL L1 Servicedesk",
+            cmdb_ci: "helpdesk consult",
+            short_description: "Via SMS: " + msg.Body,
+            contact_type: "Customer Portal",
+            description: msg.Body,
+            u_preferred_contact_meathod: queue[to].pcm
+            //"u_category": "application error",
+            //"u_subcategory": "general error/exception"
+        });
+    }
+
+    if (!_.isUndefined(msg.MediaContentType0) && !_.isUndefined(msg.MediaUrl0) && state >= 5) {
         console.log("Twilio Media Received");
         var fileExt = "";
         if (msg.MediaContentType0.indexOf('png') > -1)
@@ -223,15 +316,16 @@ function consume(msg) {
         fileExt = queue[to].mc + fileExt;
 
         queue[to].mc++;
+        //queue[to].state = 6;
 
         var cb = function (error, response, body) {
             console.log("Status :" + response.statusCode);
             console.log("Body" + JSON.stringify(body));
             if (!_.isUndefined(body.result)) {
-                return respond(to, "Your attachment has been saved to Incident #" + queue[to].incidentNumber);
+                respond(to, "Your attachment has been saved to Incident #" + queue[to].incidentNumber, receivedBy);
             } else {
                 console.log("Error" + error);
-                return respond(to, "Saving attachment failed. Please call the GE Help Desk.");
+                respond(to, "Saving attachment failed. Please call the GE Help Desk.", receivedBy);
             }
         };
 
@@ -253,41 +347,17 @@ function consume(msg) {
 
     }
 
-    if (msg.Body.length !== 0 && queue[to].state === 4) {
+    if (msgBody.length !== 0 && state === 6 && msgBody !== "no") {
 
         var cb = function (error, response, body) {
-            console.log("Status :" + response.statusCode);
-            console.log("Body" + JSON.stringify(body));
-            if (!_.isUndefined(body.result.number)) {
-                queue[to].state = 5;
-                setTimeout(function(){
-                    respond(to, "Would you like to add an attachment such as photo? If yes, please reply with an attachment.");
-                }, 2000);
-                return respond(to, "Description received, an agent will contact you in approximately 3 hours. Thank You.");
-            } else {
-                console.log("Error" + error);
-                return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
-            }
-        };
-        //substring(5, msg.Body.length)
-        return actionPut("incident", cb, {
-            short_description: msg.Body,
-            description: msg.Body
-        }, queue[to].incident);
-    }
-    // Meanwhile would you like to add a comment to incident ticket? If yes, please reply with your comment.
-
-    if (msg.Body.length !== 0 && queue[to].state === 5) {
-
-        var cb = function (error, response, body) {
-            console.log("Status :" + response.statusCode);
-            console.log("Error" + error);
-            console.log("Body" + JSON.stringify(body));
             //respond(to, "");
-            if (!_.isUndefined(body.result.number)) {
-                return respond(to, "Comment received, Thank You.");
+            if (!_.isUndefined(body.result) && !_.isUndefined(body.result.number)) {
+                console.log("Status :" + response.statusCode);
+                console.log("Error" + error);
+                console.log("Body" + JSON.stringify(body));
+                respond(to, "Comment received, Thank You.", receivedBy);
             } else {
-                return respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.");
+                respond(to, "Failed to update incident. Please contact Service Desk at 1-800-866-4513.", receivedBy);
             }
         };
         //substring(5, msg.Body.length)
@@ -296,14 +366,20 @@ function consume(msg) {
         }, queue[to].incident);
     }
 
-    respond(to, "Unrecognized input. Please try again.");
+    if (msgBody === "no" && state === 6) {
+        return respond(to, "An agent will contact you soon. Thank you.", receivedBy);
+    }
+
+    respond(to, "Unrecognized input. Please try again, or start over by replying GEHELP.", receivedBy);
 }
 
-function respond(to, msg) {
+function respond(to, msg, receivedBy) {
+    //Body{"ToCountry":"US","ToState":"TX","SmsMessageSid":"SM8d21846d25a72edb7f88347e1e971b39","NumMedia":"0","ToCity":"SPLENDORA","FromZip":"06850","SmsSid":"SM8d21846d25a72edb7f88347e1e971b39","FromState":"CT","SmsStatus":"received","FromCity":"NORWALK","Body":"Tyioooojjhhh","FromCountry":"US","To":"+18325434357","ToZip":"77372","NumSegments":"1","MessageSid":"SM8d21846d25a72edb7f88347e1e971b39","AccountSid":"AC16b983f4bafc602c1325a475aca8fb7c","From":"+12039844378","ApiVersion":"2010-04-01"}
+
     client.messages.create({
         body: msg,
         to: to,
-        from: "+18325434357",//"+12015913788"
+        from: receivedBy//"434357",//"+12015913788"
     }, function (err, message) {
         process.stdout.write(message.sid);
     });
