@@ -1,7 +1,7 @@
 {
-  "sn_user" : "501891528",
-  "sn_password": "SXF30gbj",
-  "authToken" : "dcc45773d88735753eaf70d442306b11",
-  "snInstance" : "gedev.service-now.com",
-  "accountSid" : "AC16b983f4bafc602c1325a475aca8fb7c"
+  "sn_user" : "",
+  "sn_password": "",
+  "authToken" : "",
+  "snInstance" : "<>.service-now.com",
+  "accountSid" : ""
 }
