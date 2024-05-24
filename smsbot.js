@@ -2,10 +2,8 @@
  * Created by divyanshverma on 10/22/15.
  */
 // Your accountSid and authToken from twilio.com/user/account
-//var accountSid = 'AC1d94aca36cb1c20f58ddb80312e9208f';
-var accountSid = "AC16b983f4bafc602c1325a475aca8fb7c"
-//var authToken = "b48c94cc5c85736255fd2f6a3ff0795d";
-var authToken = "dcc45773d88735753eaf70d442306b11"
+var accountSid = ""
+var authToken = ""
 var client = require('twilio')(accountSid, authToken);
 
 client.messages.create({
