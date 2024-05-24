@@ -13,8 +13,8 @@ var constants = require('constants');
 var ltx = require('ltx');
 _.str = require('underscore.string');
 _.str.include('Underscore.string', 'string');
-var sn_user = '501891528'
-    , sn_password = 'SXF30gbj';
+var sn_user = ''
+    , sn_password = '';
 var _jar, queue = {},
     leaveRoomTime = 600000, //Set the time in ms before bot saves the queue to instance and leaves the chat room
     intervalUpdateTime = 120000, //Set the time in ms between updates to instance
