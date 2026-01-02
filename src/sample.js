@@ -3,3 +3,4 @@ console.log(a);
 var b = a + 2;
 console.log(b);
 //Some comment = 1
+var c = a + b;
