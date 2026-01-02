@@ -1,0 +1,6 @@
+{
+  "domain": "staging",
+  "app": "test_app",
+  "host": "staging.obto.co",
+  "instructions": "Some important instructions"
+}
